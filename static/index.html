@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Campus Paws — Animal Tracker</title>
+<style>
+:root{--bg:#f5f7f2;--ink:#18231d;--muted:#718078;--green:#276749;--lime:#d8f3a5;--card:#fff;--line:#e5ebe4;--orange:#f4a261}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+header{display:flex;align-items:center;justify-content:space-between;padding:18px 5vw;background:#fff;border-bottom:1px solid var(--line);position:sticky;top:0;z-index:2}
+.brand{display:flex;align-items:center;gap:11px;font-weight:800;font-size:19px}.logo{background:var(--green);color:white;border-radius:13px;width:42px;height:42px;display:grid;place-items:center;font-size:23px}
+nav{display:flex;gap:22px;color:var(--muted);font-weight:600}nav a{color:inherit;text-decoration:none}nav a:first-child{color:var(--green)}
+header .actions{display:flex;gap:10px}
+button{border:0;border-radius:12px;padding:11px 16px;background:var(--green);color:white;font-weight:700;cursor:pointer}button.secondary{background:#edf4ec;color:var(--green)}button:hover{filter:brightness(.96)}
+main{max-width:1240px;margin:32px auto;padding:0 24px}.hero{display:flex;justify-content:space-between;gap:25px;align-items:center;margin-bottom:25px}.eyebrow{color:var(--green);font-weight:800;text-transform:uppercase;letter-spacing:.11em;font-size:11px}h1{font-size:clamp(28px,4vw,42px);letter-spacing:-1.5px;line-height:1.1;margin:8px 0}p{color:var(--muted);margin:8px 0}.hero p{max-width:580px}
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:14px;margin:25px 0}.stat,.panel,.animal{background:var(--card);border:1px solid var(--line);border-radius:18px}.stat{padding:19px}.stat .num{font-size:29px;font-weight:800;margin:6px 0}.stat small{color:var(--muted);font-weight:600}.stat .ico{float:right;font-size:22px}
+.layout{display:grid;grid-template-columns:1.4fr .9fr;gap:18px}.panel{padding:21px}.panel-head{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:16px}.panel h2{font-size:18px;margin:0}.tools{display:flex;gap:10px;flex-wrap:wrap;margin-bottom:15px}input,select,textarea{border:1px solid #dfe7df;border-radius:11px;padding:11px 12px;background:#fff;color:var(--ink);font:inherit}input{flex:1;min-width:150px}.map{height:230px;border-radius:14px;background:#e8f1e5;position:relative;overflow:hidden;border:1px solid #dce8d8}
+.map:before,.map:after{content:"";position:absolute;background:#fff;opacity:.8;transform:rotate(-22deg)}.map:before{height:18px;width:130%;top:48%;left:-10%}.map:after{height:12px;width:130%;top:22%;left:-12%;transform:rotate(29deg)}
+.block{position:absolute;background:#cbdcc7;border-radius:12px;border:1px solid #b7ceb2;z-index:1;display:grid;place-items:center;color:#5b7455;font-size:11px;font-weight:700}.b1{left:8%;top:12%;width:23%;height:30%}.b2{right:8%;top:16%;width:25%;height:24%}.b3{left:35%;bottom:9%;width:28%;height:30%}
+.pin{position:absolute;z-index:2;background:var(--green);border:3px solid white;border-radius:50% 50% 50% 0;width:29px;height:29px;transform:rotate(-45deg);box-shadow:0 4px 9px #365c3d55}.pin:after{content:"";position:absolute;background:white;width:7px;height:7px;border-radius:50%;top:8px;left:8px}
+.map-label{position:absolute;z-index:3;bottom:10px;left:12px;background:#ffffffd9;padding:5px 9px;border-radius:8px;font-size:11px;font-weight:700}
+.animal-list{display:grid;gap:11px}.animal{display:flex;align-items:center;gap:13px;padding:12px}.avatar{width:47px;height:47px;border-radius:14px;background:#eff5e9;display:grid;place-items:center;font-size:25px;flex-shrink:0}.animal-info{flex:1;min-width:0}.animal-info strong{display:block}.animal-info small{color:var(--muted)}.badge{font-size:11px;font-weight:800;padding:5px 9px;border-radius:99px;background:#e6f5e8;color:#267047;white-space:nowrap}.badge.alert{background:#fff0dc;color:#a55b16}.animal button{padding:8px 11px;font-size:12px}
+.activity{display:grid;gap:14px}.event{display:flex;gap:11px}.dot{width:9px;height:9px;background:#7fb48b;border-radius:50%;margin-top:7px;flex-shrink:0}.event strong{font-size:13px}.event small{display:block;color:var(--muted)}
+footer{padding:30px;text-align:center;color:var(--muted);font-size:12px}
+dialog{border:0;border-radius:20px;padding:25px;width:min(480px,calc(100% - 28px));box-shadow:0 20px 80px #14261b44}dialog::backdrop{background:#17251db0}.formgrid{display:grid;gap:12px;margin:15px 0}.formgrid label{display:grid;gap:5px;font-size:13px;font-weight:700}.form-actions{display:flex;justify-content:flex-end;gap:9px}
+@media(max-width:800px){nav{display:none}.hero{align-items:flex-start;flex-direction:column}.stats{grid-template-columns:repeat(2,1fr)}.layout{grid-template-columns:1fr}.stats .stat{padding:14px}}
+</style>
+</head>
+<body>
+<header><div class="brand"><div class="logo">🐾</div> Campus Paws</div><nav><a href="#dashboard">Dashboard</a><a href="#animals">Animals</a><a href="#activity">Activity</a></nav><div class="actions"><button onclick="document.getElementById('addDialog').showModal()">＋ Register animal</button><button class="secondary" onclick="logout()">Logout</button></div></header>
+<main id="dashboard">
+<section class="hero"><div><div class="eyebrow">Campus animal care · live overview</div><h1>Every paw has a place.</h1><p>A simple campus dashboard to identify community animals, log sightings, and help the care team follow up. Demo records are sample data—not live GPS.</p></div><button class="secondary" onclick="printLabels()">▧ Print QR labels</button></section>
+<section class="stats">
+<div class="stat"><span class="ico">🐕</span><small>Registered animals</small><div class="num" id="total">0</div><small>Across campus</small></div>
+<div class="stat"><span class="ico">📍</span><small>Reported today</small><div class="num" id="reportedCount">0</div><small>Community sightings</small></div>
+<div class="stat"><span class="ico">💚</span><small>Care follow-ups</small><div class="num" id="followupCount">0</div><small>Needs review</small></div>
+<div class="stat"><span class="ico">🏷️</span><small>QR profiles</small><div class="num" id="qrTotal">0</div><small>Unique animal IDs</small></div>
+</section>
+<div class="layout">
+<section class="panel"><div class="panel-head"><h2>Campus sightings</h2><span class="badge">Illustrative map</span></div><div class="map" aria-label="Illustrative campus map"><div class="block b1">ACADEMIC BLOCK</div><div class="block b2">LIBRARY</div><div class="block b3">HOSTEL</div><div id="mapPins"></div><div class="map-label">Sample locations · not GPS coordinates</div></div><p style="font-size:12px;margin-top:12px">For real location tracking, connect a verified GPS/device or allow staff to submit sightings. This demo does not collect device location.</p>
+<div class="panel-head" style="margin-top:24px"><h2>Animal directory</h2></div><div class="tools"><input id="search" placeholder="Search name or animal ID…" oninput="render()"><select id="filter" onchange="render()"><option value="all">All statuses</option><option>Healthy</option><option>Needs check</option><option>Missing</option></select></div><div class="animal-list" id="animalList"></div></section>
+<aside style="display:grid;gap:18px"><section class="panel"><div class="panel-head"><h2>Recent activity</h2><span>↗</span></div><div class="activity" id="activity"><div class="event"><span class="dot"></span><div><strong>New sighting · Milo</strong><small>Near Academic Block · 10:42 AM</small></div></div><div class="event"><span class="dot"></span><div><strong>Care note added · Chutki</strong><small>Water bowl refilled · 9:15 AM</small></div></div><div class="event"><span class="dot"></span><div><strong>Profile updated · Bruno</strong><small>QR label verified · Yesterday</small></div></div></div></section>
+    <section class="panel"><div class="panel-head"><h2>Identify a cat</h2><span>🔍</span></div>
+    <p>Upload a photo to check whether this cat is already registered.</p>
+    <input type="file" id="scanFile" accept="image/*" style="width:100%">
+    <img id="scanPreview" style="display:none;width:100%;border-radius:12px;margin-top:10px" alt="">
+    <button style="width:100%;margin-top:10px" onclick="identify()">Identify</button>
+    <div id="scanResult" style="margin-top:12px"></div></section>
+<section class="panel"><div class="panel-head"><h2>Quick report</h2><span>✎</span></div><p>Spotted an animal? Add a sighting to help the campus care team.</p><div class="formgrid"><label>Animal<select id="reportAnimal"></select></label><label>Where did you see them?<input id="reportPlace" placeholder="e.g. near the canteen"></label><label>Note<textarea id="reportNote" rows="2" placeholder="Optional observation"></textarea></label></div><button style="width:100%" onclick="submitReport()">Submit sighting</button><p id="reportMsg" style="font-size:12px"></p></section></aside>
+</div>
+</main>
+<footer>Campus Paws · Student animal-care demo · Sample information only</footer>
+
+<dialog id="loginDialog"><form method="dialog" onsubmit="login(event)"><h2>Sign in</h2><p>Enter your institute email and roll number.</p><div class="formgrid"><label>Institute email<input id="loginEmail" type="email" required placeholder="name26101@iiitnr.edu.in"></label><label>Roll number<input id="loginRoll" required maxlength="9" placeholder="261010201"></label></div><p id="loginMsg" style="font-size:12px;color:#a55b16"></p><div class="form-actions"><button type="submit">Continue</button></div></form></dialog>
+
+<dialog id="addDialog"><form method="dialog" onsubmit="addAnimal(event)"><h2>Register an animal</h2><p>Create a profile and unique QR ID.</p><div class="formgrid"><label>Animal name<input id="newName" required placeholder="e.g. Coco"></label><label>Animal type<select id="newType"><option>Dog</option><option>Cat</option><option>Other</option></select></label><label>Coat / identifying marks<input id="newMarks" placeholder="e.g. brown coat, white paws"></label><label>Photos (2–5 from different angles for cats)<input id="newPhotos" type="file" accept="image/*" multiple></label><label>Current status<select id="newStatus"><option>Healthy</option><option>Needs check</option><option>Missing</option></select></label></div><div class="form-actions"><button type="button" class="secondary" onclick="document.getElementById('addDialog').close()">Cancel</button><button type="submit">Create profile</button></div></form></dialog>
+
+<script>
+let animals=[];
+
+async function checkAuth(){
+  const r=await fetch('/api/me'), j=await r.json();
+  if(!j.authed){
+    document.getElementById('loginDialog').showModal();
+    return false;
+  }
+  return true;
+}
+
+async function login(e){
+  e.preventDefault();
+  const email=document.getElementById('loginEmail').value.trim();
+  const roll=document.getElementById('loginRoll').value.trim();
+  const r=await fetch('/api/auth',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({email,roll})});
+  const j=await r.json();
+  if(!r.ok){document.getElementById('loginMsg').textContent=j.error||'Sign-in failed.';return}
+  document.getElementById('loginMsg').textContent='';
+  document.getElementById('loginDialog').close();
+  load();
+}
+
+async function logout(){
+  await fetch('/api/logout',{method:'POST'});
+  location.reload();
+}
+
+async function load(){
+  if(!(await checkAuth())) return;
+  const r=await fetch('/api/animals');
+  animals=(await r.json()).map(a=>({...a,emoji:a.type==='Cat'?'🐈':a.type==='Dog'?'🐕':'🐾'}));
+  render();
+}
+
+async function addAnimal(e){
+  e.preventDefault();
+  const name=document.getElementById('newName').value.trim(); if(!name)return;
+  const fd=new FormData();
+  fd.append('name',name);
+  fd.append('type',document.getElementById('newType').value);
+  fd.append('marks',document.getElementById('newMarks').value);
+  fd.append('status',document.getElementById('newStatus').value);
+  for(const f of document.getElementById('newPhotos').files) fd.append('images',f);
+  const r=await fetch('/api/animals',{method:'POST',body:fd}), j=await r.json();
+  if(!r.ok){alert(j.error||'Could not register animal');return}
+  document.getElementById('addDialog').close(); e.target.reset(); load();
+}
+
+document.getElementById('scanFile').onchange=e=>{
+  const f=e.target.files[0], p=document.getElementById('scanPreview');
+  if(f){p.src=URL.createObjectURL(f);p.style.display='block'}
+};
+
+let lastResults=[];
+
+async function identify(){
+  const file=document.getElementById('scanFile').files[0], out=document.getElementById('scanResult');
+  if(!file){out.textContent='Choose a photo first.';return}
+  out.textContent='Identifying…';
+  const fd=new FormData(); fd.append('image',file);
+  const r=await fetch('/api/scan',{method:'POST',body:fd}), j=await r.json();
+  if(!r.ok){out.textContent=j.error||'Something went wrong.';return}
+  lastResults=j.results;
+  if(!lastResults.length){out.innerHTML='<p>No cats are registered yet.</p>';return}
+  drawResults(3);
+}
+
+function drawResults(n){
+  const out=document.getElementById('scanResult');
+  const cards=lastResults.slice(0,n).map((m,i)=>{
+    const a=m.animal;
+    return `<div class="animal" style="flex-wrap:wrap;margin-bottom:10px">
+      <img src="${m.best_photo}" style="width:56px;height:56px;border-radius:14px;object-fit:cover" alt="">
+      <div class="animal-info"><strong>#${i+1} ${esc(a.name)} <small style="display:inline">${esc(a.id)}</small></strong>
+        <small>${esc(a.status)} · ${esc(a.marks||'no marks listed')}</small>
+        <small>Last seen: ${esc(a.place||'unknown')} · similarity ${m.score}</small></div>
+      <span class="badge ${m.confident?'':'alert'}">${m.confident?'Likely match':'Weak match'}</span>
+      <button class="secondary" onclick="togglePhotos(${i})">Photos (${m.photos.length})</button>
+      <div id="gal${i}" style="display:none;width:100%;gap:6px;flex-wrap:wrap;margin-top:8px"></div>
+    </div>`;
+  }).join('');
+  const note=lastResults[0].confident?'':'<p>None of these passed the match threshold, so this may be a new cat.</p>';
+  const more=lastResults.length>n?`<button class="secondary" style="width:100%" onclick="drawResults(${lastResults.length})">Show more matches (${lastResults.length-n})</button>`:'';
+  out.innerHTML=note+cards+more;
+}
+
+function togglePhotos(i){
+  const g=document.getElementById('gal'+i);
+  if(g.style.display==='flex'){g.style.display='none';return}
+  g.innerHTML=lastResults[i].photos.map(p=>`<a href="${p}" target="_blank"><img src="${p}" style="width:72px;height:72px;border-radius:10px;object-fit:cover" alt=""></a>`).join('');
+  g.style.display='flex';
+}
+
+function pinPosition(id){
+  let h=0; for(const c of id) h=(h*31+c.charCodeAt(0))%1000;
+  return { top: 20+(h%60), left: 15+((h*7)%70) };
+}
+
+function renderMapPins(list){
+  const el=document.getElementById('mapPins');
+  if(!list.length){el.innerHTML='';return}
+  el.innerHTML=list.slice(0,6).map((a,i)=>{
+    const {top,left}=pinPosition(a.id);
+    const orange=i%2===1?'background:#e68a39':'';
+    return `<div class="pin" style="top:${top}%;left:${left}%;${orange}" title="${esc(a.name)} · ${esc(a.place||'location unknown')}"></div>`;
+  }).join('');
+}
+
+function render(){
+  let q=document.getElementById('search').value.toLowerCase(),f=document.getElementById('filter').value;
+  let rows=animals.filter(a=>(a.name+a.id+a.type).toLowerCase().includes(q)&&(f==='all'||a.status===f));
+  document.getElementById('animalList').innerHTML=rows.map(a=>`<div class="animal"><div class="avatar">${a.emoji}</div><div class="animal-info"><strong>${esc(a.name)} <small style="display:inline">${a.id}</small></strong><small>${esc(a.type)} · ${esc(a.place||"New registration")}</small></div><span class="badge ${a.status==='Healthy'?'':'alert'}">${a.status}</span><button class="secondary" onclick="label('${a.id}')">QR</button><button class="secondary" onclick="removeAnimal('${a.id}')">🗑</button></div>`).join('')||'<p>No animals match your search.</p>';
+  document.getElementById('total').textContent=animals.length;
+  document.getElementById('qrTotal').textContent=animals.length;
+  document.getElementById('reportedCount').textContent=animals.filter(a=>a.place).length;
+  document.getElementById('followupCount').textContent=animals.filter(a=>a.status&&a.status!=='Healthy').length;
+  document.getElementById('reportAnimal').innerHTML=animals.map(a=>`<option value="${a.id}">${esc(a.name)} (${a.id})</option>`).join('');
+  renderMapPins(animals);
+}
+
+function esc(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+
+async function submitReport(){
+  let a=animals.find(x=>x.id===document.getElementById('reportAnimal').value),place=document.getElementById('reportPlace').value.trim();
+  if(!a||!place){document.getElementById('reportMsg').textContent='Select an animal and enter a location.';return}
+  const r=await fetch(`/api/animals/${a.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({place})});
+  if(!r.ok){document.getElementById('reportMsg').textContent='Could not save sighting to server.';return}
+  a.place=place;
+  let note=document.getElementById('reportNote').value.trim();
+  let el=document.createElement('div');el.className='event';el.innerHTML=`<span class="dot"></span><div><strong>New sighting · ${esc(a.name)}</strong><small>${esc(place)} · just now${note?' · '+esc(note):''}</small></div>`;
+  document.getElementById('activity').prepend(el);
+  document.getElementById('reportMsg').textContent='Sighting saved.';
+  document.getElementById('reportPlace').value='';document.getElementById('reportNote').value='';render()
+}
+
+async function removeAnimal(id){
+  if(!confirm('Delete this animal profile?'))return;
+  const r=await fetch(`/api/animals/${id}`,{method:'DELETE'});
+  if(!r.ok){alert('Could not delete.');return}
+  load();
+}
+
+function label(id){let a=animals.find(x=>x.id===id);let w=window.open('','_blank');w.document.write(`<html><head><title>Animal ID label</title><style>body{font:16px Arial;text-align:center;padding:30px}.label{border:2px solid #222;border-radius:12px;padding:25px;max-width:320px;margin:auto} .qr{font-size:50px;border:2px dashed #555;padding:15px;margin:15px}small{display:block}</style></head><body><div class="label"><h2>Campus Paws</h2><h1>${esc(a.name)}</h1><div class="qr">▦</div><b>${a.id}</b><small>QR placeholder · link to profile when backend is connected</small><p>${esc(a.type)} · ${esc(a.marks||'')}</p></div><script>window.print()<\/script></body></html>`);w.document.close()}
+function printLabels(){window.print()}
+
+load();
+</script>
+</body></html>
