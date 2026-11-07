@@ -21,8 +21,8 @@ INSTITUTE_EMAIL = re.compile(r"^[a-zA-Z][a-zA-Z.]*26101@iiitnr\.edu\.in$")
 MIN_ROLL, MAX_ROLL = 261010201, 261010302
 
 app = Flask(__name__, static_folder="static", static_url_path="")
-app.secret_key = os.environ.get("APP_SECRET", "dev-only-change-me")  # set APP_SECRET env var for real use
-app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024  # up to 5 photos per animal
+app.secret_key = os.environ.get("APP_SECRET", "dev-only-change-me")
+app.config["MAX_CONTENT_LENGTH"] = 15 * 1024 * 1024
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 
@@ -52,7 +52,10 @@ def init_db():
             type TEXT NOT NULL,
             marks TEXT,
             status TEXT DEFAULT 'Healthy',
-            place TEXT
+            place TEXT,
+            allergies TEXT,
+            favorite_food TEXT,
+            care_notes TEXT
         );
         CREATE TABLE IF NOT EXISTS animal_photos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -60,9 +63,57 @@ def init_db():
             path TEXT NOT NULL,
             vector TEXT
         );
+        CREATE TABLE IF NOT EXISTS diet_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            animal_id TEXT NOT NULL REFERENCES animals(id) ON DELETE CASCADE,
+            food TEXT NOT NULL,
+            amount TEXT,
+            notes TEXT,
+            logged_at TEXT DEFAULT CURRENT_TIMESTAMP
+        );
     """)
     conn.commit()
     conn.close()
+
+
+TOXIC_FOOD_KEYWORDS = {
+    "chocolate": "Chocolate contains theobromine, which cats and dogs can't metabolize safely.",
+    "cocoa": "Cocoa contains theobromine, toxic to cats and dogs.",
+    "grape": "Grapes can cause sudden kidney failure in dogs, even in small amounts.",
+    "raisin": "Raisins carry the same kidney-failure risk as grapes for dogs.",
+    "onion": "Onions damage red blood cells in cats and dogs, raw or cooked.",
+    "garlic": "Garlic damages red blood cells in cats and dogs, raw or cooked.",
+    "xylitol": "Xylitol causes a dangerous blood sugar crash in dogs.",
+    "avocado": "Avocado contains persin, which can be harmful to several pets, especially birds.",
+    "caffeine": "Caffeine is toxic to cats and dogs in amounts far smaller than a human dose.",
+    "coffee": "Coffee contains caffeine, toxic to cats and dogs.",
+    "alcohol": "Alcohol is toxic to cats and dogs even in small amounts.",
+    "cooked bone": "Cooked bones splinter easily and can injure the mouth, throat, or gut.",
+}
+
+
+def check_diet_flags(food_text):
+    flags = []
+    lowered = food_text.lower()
+    for keyword, warning in TOXIC_FOOD_KEYWORDS.items():
+        if keyword in lowered:
+            flags.append({"type": "toxic_food", "keyword": keyword, "message": warning})
+    return flags
+
+
+def check_pattern_flags(db, animal_id, new_food):
+    rows = db.execute(
+        "SELECT food FROM diet_logs WHERE animal_id = ? ORDER BY logged_at DESC LIMIT 3",
+        (animal_id,),
+    ).fetchall()
+    recent = [new_food.strip().lower()] + [r["food"].strip().lower() for r in rows]
+    if len(recent) >= 3 and len(set(recent[:3])) == 1 and recent[0]:
+        return [{
+            "type": "repeated_food",
+            "message": f"Logged '{new_food}' three times in a row — worth noting if this is a new "
+                       f"preference, pickiness, or an appetite change. Mention it to a vet if it persists.",
+        }]
+    return []
 
 
 def new_animal_id(animal_type):
@@ -119,7 +170,7 @@ class CatNet(nn.Module):
         self.pool = nn.AdaptiveAvgPool2d(1)
         self.emb = nn.Sequential(
             nn.Linear(backbone.last_channel, emb_dim, bias=False), nn.BatchNorm1d(emb_dim))
-        self.W = nn.Parameter(torch.zeros(num_classes, emb_dim))  # unused at inference
+        self.W = nn.Parameter(torch.zeros(num_classes, emb_dim))
 
     def embed(self, x):
         x = self.pool(self.features(x)).flatten(1)
@@ -195,6 +246,9 @@ def create_animal():
     animal_type = request.form.get("type", "Other").strip() or "Other"
     marks = request.form.get("marks", "").strip()
     status = request.form.get("status", "Healthy").strip() or "Healthy"
+    allergies = request.form.get("allergies", "").strip()
+    favorite_food = request.form.get("favorite_food", "").strip()
+    care_notes = request.form.get("care_notes", "").strip()
     files = request.files.getlist("images")
 
     if not name:
@@ -208,8 +262,9 @@ def create_animal():
     animal_id = new_animal_id(animal_type)
     db = get_db()
     db.execute(
-        "INSERT INTO animals (id, name, type, marks, status) VALUES (?,?,?,?,?)",
-        (animal_id, name, animal_type, marks, status),
+        """INSERT INTO animals (id, name, type, marks, status, allergies, favorite_food, care_notes)
+           VALUES (?,?,?,?,?,?,?,?)""",
+        (animal_id, name, animal_type, marks, status, allergies, favorite_food, care_notes),
     )
 
     for f in files:
@@ -232,7 +287,7 @@ def create_animal():
 @login_required
 def update_animal(animal_id):
     data = request.get_json(silent=True) or {}
-    allowed = {"name", "type", "marks", "status", "place"}
+    allowed = {"name", "type", "marks", "status", "place", "allergies", "favorite_food", "care_notes"}
     fields = {k: v for k, v in data.items() if k in allowed}
     if not fields:
         return jsonify({"error": f"no updatable fields provided (allowed: {sorted(allowed)})"}), 400
@@ -257,6 +312,81 @@ def delete_animal(animal_id):
     if cur.rowcount == 0:
         return jsonify({"error": "animal not found"}), 404
     return jsonify({"status": "ok"})
+
+
+# ---------------------------- Similar-looking animals ----------------------------
+@app.route("/api/animals/<animal_id>/similar", methods=["GET"])
+@login_required
+def similar_animals(animal_id):
+    db = get_db()
+    own_rows = db.execute(
+        "SELECT vector FROM animal_photos WHERE animal_id = ? AND vector IS NOT NULL", (animal_id,)
+    ).fetchall()
+    if not own_rows:
+        return jsonify({"results": [], "reason": "no face data for this animal"})
+
+    own_vecs = torch.stack([torch.tensor(json.loads(r["vector"])) for r in own_rows])
+    target_emb = F.normalize(own_vecs.mean(dim=0), dim=0)
+
+    rows = db.execute(
+        """SELECT animals.id AS animal_id, animals.name, animal_photos.path, animal_photos.vector
+           FROM animal_photos
+           JOIN animals ON animals.id = animal_photos.animal_id
+           WHERE animal_photos.vector IS NOT NULL AND animals.id != ?""",
+        (animal_id,),
+    ).fetchall()
+
+    by_animal = {}
+    for row in rows:
+        vec = torch.tensor(json.loads(row["vector"]))
+        score = float(F.cosine_similarity(target_emb, vec, dim=0))
+        entry = by_animal.setdefault(row["animal_id"], {
+            "id": row["animal_id"], "name": row["name"], "best_photo": row["path"], "score": -1.0
+        })
+        if score > entry["score"]:
+            entry["score"] = score
+            entry["best_photo"] = row["path"]
+
+    results = sorted(by_animal.values(), key=lambda e: e["score"], reverse=True)[:3]
+    for r in results:
+        r["score"] = round(r["score"], 3)
+    return jsonify({"results": results})
+
+
+# ---------------------------- Diet log ----------------------------
+@app.route("/api/animals/<animal_id>/diet", methods=["GET"])
+@login_required
+def list_diet(animal_id):
+    db = get_db()
+    rows = db.execute(
+        "SELECT * FROM diet_logs WHERE animal_id = ? ORDER BY logged_at DESC", (animal_id,)
+    ).fetchall()
+    return jsonify([dict(r) for r in rows])
+
+
+@app.route("/api/animals/<animal_id>/diet", methods=["POST"])
+@login_required
+def add_diet(animal_id):
+    data = request.get_json(silent=True) or {}
+    food = str(data.get("food", "")).strip()
+    amount = str(data.get("amount", "")).strip()
+    notes = str(data.get("notes", "")).strip()
+    if not food:
+        return jsonify({"error": "food is required"}), 400
+
+    db = get_db()
+    exists = db.execute("SELECT 1 FROM animals WHERE id = ?", (animal_id,)).fetchone()
+    if not exists:
+        return jsonify({"error": "animal not found"}), 404
+
+    flags = check_diet_flags(food) + check_pattern_flags(db, animal_id, food)
+
+    db.execute(
+        "INSERT INTO diet_logs (animal_id, food, amount, notes) VALUES (?,?,?,?)",
+        (animal_id, food, amount, notes),
+    )
+    db.commit()
+    return jsonify({"status": "ok", "flags": flags}), 201
 
 
 # ---------------------------- Scan (identify a cat) ----------------------------

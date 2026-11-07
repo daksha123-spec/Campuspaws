@@ -1,1 +1,7 @@
-__pycache__/ *.pyc venv/ tracker.db static/uploads/ .env
+__pycache__/
+*.pyc
+venv/
+tracker.db
+static/uploads/
+.env
+.vscode/
